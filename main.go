@@ -100,10 +100,12 @@ var explicitNon2025Patterns = []string{
 }
 
 func getFirestoreClient(ctx context.Context) (*firestore.Client, error) {
-	projectID := os.Getenv("PROJECT_ID")
+	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
+	if projectID == "" {
+		return nil, fmt.Errorf("GOOGLE_CLOUD_PROJECT not set")
+	}
 	return firestore.NewClient(ctx, projectID)
 }
-
 func storeMessage(ctx context.Context, client *firestore.Client, docID string, msg TelegramMessage) error {
 	_, err := client.Collection(messagesCollection).
 		Doc(docID).
