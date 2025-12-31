@@ -364,18 +364,31 @@ func sendTextMessage(chatID int64, text string) error {
 }
 
 func workerHandler(w http.ResponseWriter, r *http.Request) {
+	// 1️⃣ Always handle GET separately (browser / health check)
+	if r.Method == http.MethodGet {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("worker alive"))
+		return
+	}
+
+	// 2️⃣ Only allow POST for actual processing
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	ctx := context.Background()
 
 	client, err := getFirestoreClient(ctx)
 	if err != nil {
-		http.Error(w, "firestore unavailable", 500)
+		http.Error(w, "firestore unavailable", http.StatusInternalServerError)
 		return
 	}
 	defer client.Close()
 
 	docs, err := fetchUnprocessed(ctx, client, 50)
 	if err != nil {
-		http.Error(w, "failed to fetch", 500)
+		http.Error(w, "failed to fetch", http.StatusInternalServerError)
 		return
 	}
 
@@ -383,7 +396,9 @@ func workerHandler(w http.ResponseWriter, r *http.Request) {
 		processOne(ctx, client, doc)
 	}
 
+	// 3️⃣ Always write a response body
 	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("processed"))
 }
 
 func processOne(
