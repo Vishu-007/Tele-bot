@@ -241,14 +241,18 @@ func isRelevant(messageText string) bool {
 }
 
 func telegramWebhookHandler(w http.ResponseWriter, r *http.Request) {
-	// Always ACK fast, even on errors
-	defer w.WriteHeader(http.StatusOK)
+	// Telegram sends POST only
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
 	ctx := context.Background()
 
 	var update TelegramUpdate
 	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
-		// malformed update → ACK and drop
+		// Malformed update → ACK and drop
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
@@ -260,6 +264,7 @@ func telegramWebhookHandler(w http.ResponseWriter, r *http.Request) {
 		msg = update.ChannelPost
 	} else {
 		// Not a message we care about
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
@@ -267,7 +272,7 @@ func telegramWebhookHandler(w http.ResponseWriter, r *http.Request) {
 	hasText := msg.Text != "" || msg.Caption != ""
 
 	if !hasText && !hasMedia {
-		// Nothing useful
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
@@ -276,8 +281,9 @@ func telegramWebhookHandler(w http.ResponseWriter, r *http.Request) {
 
 	client, err := getFirestoreClient(ctx)
 	if err != nil {
-		// Firestore unavailable → Telegram will retry
-		w.WriteHeader(http.StatusInternalServerError)
+		// 🔴 IMPORTANT: log, but ACK Telegram
+		log.Println("Firestore client error:", err)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 	defer client.Close()
@@ -300,10 +306,14 @@ func telegramWebhookHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Idempotent upsert
 	if err := storeMessage(ctx, client, docID, firestoreMsg); err != nil {
-		// Fail so Telegram retries
-		w.WriteHeader(http.StatusInternalServerError)
+		// 🔴 IMPORTANT: log, but ACK Telegram
+		log.Println("Firestore write error:", err)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
+
+	// ✅ Final ACK — exactly once
+	w.WriteHeader(http.StatusOK)
 }
 
 func telegramAPIURL(method string) string {
