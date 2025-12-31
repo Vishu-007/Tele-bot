@@ -100,7 +100,7 @@ var explicitNon2025Patterns = []string{
 }
 
 func getFirestoreClient(ctx context.Context) (*firestore.Client, error) {
-	projectID := "YOUR_GCP_PROJECT_ID"
+	projectID := os.Getenv("PROJECT_ID")
 	return firestore.NewClient(ctx, projectID)
 }
 
