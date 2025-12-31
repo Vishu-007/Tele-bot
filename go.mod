@@ -1,6 +1,6 @@
 module telegram-job-bot
 
-go 1.25.1
+go 1.21
 
 require cloud.google.com/go/firestore v1.15.0
 
